@@ -7,7 +7,7 @@
 > **📚 相关文档**
 >
 > - [火山方舟 (Volcengine Ark) 产品主页](https://www.volcengine.com/product/ark)
-> - [火山方舟 API 文档](https://www.volcengine.com/docs/82379/1099475)
+> - [火山方舟 API 文档]([https://www.volcengine.com/docs/82379/1099475](https://www.volcengine.com/docs/82379/1099455?lang=zh))
 > - [豆包大模型介绍](https://www.volcengine.com/product/doubao)
 
 ![Preview](assets/screen_shot.png)
