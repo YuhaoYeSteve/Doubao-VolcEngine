@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ark Chat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="h-screen w-screen bg-gray-50">
+  <div class="h-full grid grid-cols-[280px_1fr]">
+    <aside class="border-r border-gray-200 bg-white flex flex-col">
+      <div class="p-4 border-b">
+        <div class="text-lg font-semibold">会话</div>
+        <button id="new-btn" class="mt-3 w-full bg-black text-white rounded px-3 py-2">新建会话</button>
+      </div>
+      <div id="conv-list" class="flex-1 overflow-y-auto">
+      </div>
+    </aside>
+    <main class="flex flex-col">
+      <header class="border-b border-gray-200 bg-white p-4 flex items-center justify-between">
+        <div id="conv-title" class="text-lg font-semibold">未选择会话</div>
+        <div class="space-x-2">
+          <button id="rename-btn" class="rounded px-3 py-2 border">重命名</button>
+          <button id="delete-btn" class="rounded px-3 py-2 border">删除</button>
+        </div>
+      </header>
+      <section id="messages" class="flex-1 overflow-y-auto p-6 space-y-4"></section>
+      <footer class="border-t border-gray-200 bg-white p-4">
+        <div class="flex space-x-3">
+          <textarea id="input" class="flex-1 resize-none h-24 rounded border p-3" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+          <button id="send-btn" class="w-24 bg-black text-white rounded px-3 py-2">发送</button>
+        </div>
+        <div id="status" class="mt-2 text-sm text-gray-500"></div>
+      </footer>
+    </main>
+  </div>
+  <script>
+    const LS_KEY = "ark_chat_conversations";
+    let conversations = [];
+    let currentId = null;
+    function uid() {
+      return Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+    function loadConversations() {
+      try {
+        conversations = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+      } catch {
+        conversations = [];
+      }
+    }
+    function saveConversations() {
+      localStorage.setItem(LS_KEY, JSON.stringify(conversations));
+    }
+    function renderConversationList() {
+      const list = document.getElementById("conv-list");
+      list.innerHTML = "";
+      conversations.forEach(c => {
+        const item = document.createElement("button");
+        item.className = "w-full text-left px-4 py-3 border-b hover:bg-gray-50";
+        if (c.id === currentId) item.className += " bg-gray-100";
+        item.textContent = c.title;
+        item.onclick = () => selectConversation(c.id);
+        list.appendChild(item);
+      });
+    }
+    function selectConversation(id) {
+      currentId = id;
+      const c = conversations.find(x => x.id === id);
+      document.getElementById("conv-title").textContent = c ? c.title : "未选择会话";
+      renderConversationList();
+      renderMessages();
+    }
+    function renderMessages() {
+      const box = document.getElementById("messages");
+      box.innerHTML = "";
+      const c = conversations.find(x => x.id === currentId);
+      if (!c) return;
+      c.messages.forEach(m => {
+        const row = document.createElement("div");
+        row.className = "flex";
+        const bubble = document.createElement("div");
+        bubble.className = "max-w-2xl px-4 py-3 rounded";
+        bubble.textContent = m.content;
+        if (m.role === "user") {
+          row.className += " justify-end";
+          bubble.className += " bg-black text-white";
+        } else {
+          row.className += " justify-start";
+          bubble.className += " bg-gray-200";
+        }
+        box.appendChild(row);
+        row.appendChild(bubble);
+      });
+      box.scrollTop = box.scrollHeight;
+    }
+    function createConversation() {
+      const id = uid();
+      const conv = { id, title: "新会话", messages: [] };
+      conversations.unshift(conv);
+      saveConversations();
+      selectConversation(id);
+    }
+    function deleteConversation() {
+      if (!currentId) return;
+      conversations = conversations.filter(x => x.id !== currentId);
+      saveConversations();
+      currentId = conversations.length ? conversations[0].id : null;
+      renderConversationList();
+      selectConversation(currentId);
+    }
+    function renameConversation() {
+      if (!currentId) return;
+      const c = conversations.find(x => x.id === currentId);
+      const t = prompt("输入新标题", c.title || "");
+      if (t === null) return;
+      c.title = t || "未命名会话";
+      saveConversations();
+      renderConversationList();
+      document.getElementById("conv-title").textContent = c.title;
+    }
+    async function sendMessage() {
+      const el = document.getElementById("input");
+      const text = el.value.trim();
+      if (!text) return;
+      if (!currentId) createConversation();
+      const c = conversations.find(x => x.id === currentId);
+      c.messages.push({ role: "user", content: text, created: Date.now() });
+      saveConversations();
+      renderMessages();
+      el.value = "";
+      setStatus("发送中...");
+      try {
+        const req = { messages: c.messages.map(m => ({ role: m.role === "assistant" ? "assistant" : m.role, content: m.content })) };
+        const resp = await fetch("http://localhost:8000/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(req)
+        });
+        if (!resp.ok) {
+          const d = await resp.json().catch(() => ({}));
+          throw new Error(d.detail || ("HTTP " + resp.status));
+        }
+        const data = await resp.json();
+        c.messages.push({ role: "assistant", content: data.content, created: Date.now() });
+        saveConversations();
+        renderMessages();
+        setStatus("模型：" + data.model + "，tokens：" + data.usage.total_tokens);
+      } catch (e) {
+        setStatus("错误：" + e.message);
+      }
+    }
+    function setStatus(s) {
+      document.getElementById("status").textContent = s || "";
+    }
+    document.getElementById("new-btn").onclick = createConversation;
+    document.getElementById("delete-btn").onclick = deleteConversation;
+    document.getElementById("rename-btn").onclick = renameConversation;
+    document.getElementById("send-btn").onclick = sendMessage;
+    document.getElementById("input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+    loadConversations();
+    renderConversationList();
+    selectConversation(conversations.length ? conversations[0].id : null);
+  </script>
+</body>
+</html>

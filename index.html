@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ark 图片分析 Demo</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .response-container {
+            min-height: 200px;
+        }
+        .loading {
+            display: none;
+        }
+        .loading.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-10">
+        <!-- 标题 -->
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-indigo-800 mb-2">
+                <i class="fa fa-picture-o mr-2"></i>Ark 图片分析 Demo
+            </h1>
+            <p class="text-gray-600">上传图片 URL，让 AI 为您分析图片内容</p>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 左侧：输入表单 -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                    <i class="fa fa-cog mr-2"></i>分析设置
+                </h2>
+                
+                <form id="imageForm" class="space-y-4">
+                    <!-- 图片 URL -->
+                    <div>
+                        <label for="imageUrl" class="block text-sm font-medium text-gray-700 mb-1">
+                            图片 URL <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="url" 
+                            id="imageUrl" 
+                            name="imageUrl" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                            placeholder="https://example.com/image.jpg"
+                            value="https://ark-project.tos-cn-beijing.volces.com/doc_image/ark_demo_img_1.png"
+                            required
+                        >
+                    </div>
+
+                    <!-- 提问内容 -->
+                    <div>
+                        <label for="prompt" class="block text-sm font-medium text-gray-700 mb-1">
+                            提问内容 <span class="text-red-500">*</span>
+                        </label>
+                        <textarea 
+                            id="prompt" 
+                            name="prompt" 
+                            rows="3" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                            placeholder="你看到了什么？"
+                            required
+                        >你看见了什么？</textarea>
+                    </div>
+
+                    <!-- 图片预览 -->
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">图片预览</label>
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50 min-h-[200px] flex items-center justify-center">
+                            <img id="imagePreview" src="https://ark-project.tos-cn-beijing.volces.com/doc_image/ark_demo_img_1.png" 
+                                 alt="图片预览" 
+                                 class="max-w-full max-h-60 object-contain rounded-md">
+                        </div>
+                    </div>
+
+                    <!-- 提交按钮 -->
+                    <div class="pt-4">
+                        <button 
+                            type="submit" 
+                            id="submitBtn" 
+                            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg transition-all transform hover:scale-105 flex items-center justify-center"
+                        >
+                            <i class="fa fa-rocket mr-2"></i>开始分析
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 右侧：结果显示 -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                    <i class="fa fa-comments-o mr-2"></i>分析结果
+                </h2>
+                
+                <!-- 加载状态 -->
+                <div id="loading" class="loading text-center py-10">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+                    <p class="mt-4 text-gray-600">AI 正在分析图片，请稍候...</p>
+                </div>
+
+                <!-- 结果容器 -->
+                <div id="result" class="response-container space-y-4">
+                    <div class="text-center text-gray-500 py-10">
+                        <i class="fa fa-lightbulb-o text-4xl mb-3"></i>
+                        <p>点击"开始分析"按钮，AI 将为您分析图片内容</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态信息 -->
+        <div class="mt-8 bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-3">
+                <i class="fa fa-info-circle mr-2"></i>服务状态
+            </h2>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <span class="inline-block w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                    <span class="text-gray-700">后端服务运行中</span>
+                </div>
+                <a href="http://localhost:8000/docs" target="_blank" 
+                   class="text-indigo-600 hover:text-indigo-800 flex items-center transition-colors">
+                    <i class="fa fa-book mr-1"></i>API 文档
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 图片 URL 变化时更新预览
+        document.getElementById('imageUrl').addEventListener('input', function(e) {
+            const imgPreview = document.getElementById('imagePreview');
+            imgPreview.src = e.target.value;
+        });
+
+        // 表单提交处理
+        document.getElementById('imageForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const imageUrl = formData.get('imageUrl');
+            const prompt = formData.get('prompt');
+            
+            // 显示加载状态
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            loading.classList.add('active');
+            result.innerHTML = '';
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>分析中...';
+            
+            try {
+                // 调用后端 API
+                const response = await fetch('http://localhost:8000/api/analyze-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_url: imageUrl,
+                        prompt: prompt
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // 显示结果
+                result.innerHTML = `
+                    <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-r-lg">
+                        <h3 class="font-semibold text-indigo-800 mb-2">AI 回答</h3>
+                        <div class="text-gray-700 whitespace-pre-line">${data.content}</div>
+                    </div>
+                    
+                    <div class="border-t pt-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">API 信息</h3>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <span class="text-gray-500">模型:</span>
+                                <span class="ml-2 font-medium">${data.model}</span>
+                            </div>
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <span class="text-gray-500">响应 ID:</span>
+                                <span class="ml-2 font-medium truncate">${data.response_id}</span>
+                            </div>
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <span class="text-gray-500">时间:</span>
+                                <span class="ml-2 font-medium">${new Date(data.created * 1000).toLocaleString()}</span>
+                            </div>
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <span class="text-gray-500">总令牌:</span>
+                                <span class="ml-2 font-medium">${data.usage.total_tokens}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                // 显示错误
+                result.innerHTML = `
+                    <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+                        <h3 class="font-semibold text-red-800 mb-2">错误</h3>
+                        <p class="text-red-700">${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                // 隐藏加载状态
+                loading.classList.remove('active');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa fa-rocket mr-2"></i>开始分析';
+            }
+        });
+    </script>
+</body>
+</html>
