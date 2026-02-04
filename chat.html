@@ -120,8 +120,15 @@
     }
     async function sendMessage() {
       const el = document.getElementById("input");
+      const btn = document.getElementById("send-btn");
       const text = el.value.trim();
-      if (!text) return;
+      if (!text || el.disabled) return;
+      
+      // 禁用输入和按钮
+      el.disabled = true;
+      btn.disabled = true;
+      btn.classList.add("opacity-50", "cursor-not-allowed");
+
       if (!currentId) createConversation();
       const c = conversations.find(x => x.id === currentId);
       c.messages.push({ role: "user", content: text, created: Date.now() });
@@ -184,6 +191,12 @@
         setStatus("完成");
       } catch (e) {
         setStatus("错误：" + e.message);
+      } finally {
+        // 恢复输入和按钮
+        el.disabled = false;
+        btn.disabled = false;
+        btn.classList.remove("opacity-50", "cursor-not-allowed");
+        el.focus();
       }
     }
     function setStatus(s) {
