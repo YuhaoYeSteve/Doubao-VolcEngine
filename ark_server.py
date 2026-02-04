@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
+import json
 import configparser
-from typing import List, Literal
+from typing import List, Literal, Optional
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -33,6 +34,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
+    stream: Optional[bool] = False
 
 class ChatResponse(BaseModel):
     content: str
@@ -63,6 +65,27 @@ def chat(req: ChatRequest):
                     {"type": "text", "text": m.content}
                 ]
             })
+
+        if req.stream:
+            stream = client.chat.completions.create(
+                model="doubao-seed-1-8-251228",
+                messages=messages,
+                stream=True
+            )
+
+            def stream_generator():
+                for chunk in stream:
+                    if chunk.choices and len(chunk.choices) > 0:
+                        content = chunk.choices[0].delta.content
+                        if content:
+                            yield f"data: {json.dumps({'content': content})}\n\n"
+                    # 检查 usage 信息 (通常在最后一个 chunk)
+                    if hasattr(chunk, 'usage') and chunk.usage:
+                         yield f"data: {json.dumps({'usage': {'total_tokens': chunk.usage.total_tokens}})}\n\n"
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
         resp = client.chat.completions.create(
             model="doubao-seed-1-8-251228",
             messages=messages
