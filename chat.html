@@ -563,6 +563,14 @@
       } catch (e) {
         removeLoading();
         setStatus("错误：" + e.message);
+        // Show error in chat
+        c.messages.push({ 
+          role: "assistant", 
+          content: `❌ 发送失败: ${e.message}`, 
+          created: Date.now() 
+        });
+        saveConversations();
+        renderMessages();
       } finally {
         // 恢复输入和按钮
         el.disabled = false;
