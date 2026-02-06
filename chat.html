@@ -33,21 +33,23 @@
     .glass-input {
       background: rgba(255, 255, 255, 0.8);
       backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      /* Subtle glow/shadow initially */
+      border: 1px solid rgba(229, 231, 235, 0.6);
+      /* Permanent Glow Effect */
       box-shadow: 
         0 4px 6px -1px rgba(0, 0, 0, 0.02), 
         0 2px 4px -1px rgba(0, 0, 0, 0.02),
-        0 0 0 1px rgba(255,255,255,0.5) inset;
+        0 0 0 1px rgba(255,255,255,0.5) inset,
+        0 0 15px rgba(59, 130, 246, 0.15); /* Soft blue halo always on */
+      transition: all 0.3s ease;
     }
     .glass-input:focus-within {
       background: rgba(255, 255, 255, 0.95);
-      border-color: rgba(59, 130, 246, 0.3); /* blue-500 light */
-      /* Glowing effect */
+      border-color: rgba(59, 130, 246, 0.4); 
+      /* Intensified Glow on Focus */
       box-shadow: 
-        0 0 0 4px rgba(59, 130, 246, 0.1), /* Outer glow */
-        0 10px 25px -5px rgba(59, 130, 246, 0.15), /* Drop shadow */
-        0 0 20px rgba(59, 130, 246, 0.1) inset; /* Inner glow */
+        0 0 0 4px rgba(59, 130, 246, 0.1), 
+        0 10px 30px -5px rgba(59, 130, 246, 0.25), 
+        0 0 20px rgba(59, 130, 246, 0.1) inset;
     }
     
     .markdown-body {
