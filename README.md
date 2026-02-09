@@ -12,7 +12,7 @@
 > - [火山方舟 API 文档](https://www.volcengine.com/docs/82379/1099475)
 > - [豆包大模型介绍](https://www.volcengine.com/product/doubao)
 
-![Preview](assets/screenshot-20260209-193208.png)
+![App Preview](assets/screenshot-20260209-193208.png)
 
 ## ✨ 功能特性
 
