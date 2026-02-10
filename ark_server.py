@@ -36,6 +36,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     stream: Optional[bool] = False
     model: Optional[str] = None
+    web_search: Optional[bool] = False
 
 class ChatResponse(BaseModel):
     content: str
@@ -59,9 +60,115 @@ def chat(req: ChatRequest):
             api_key=api_key,
         )
         
-        # Use provided model or default
-        model_id = req.model if req.model else "doubao-seed-1-8-251228"
+        # Use provided model or default from config
+        config_model = config.get("ARK", "model_id", fallback="doubao-seed-1-8-251228")
+        model_id = req.model if req.model else config_model
+        print(f"Using Model ID: {model_id}") # Debug log
 
+        if req.web_search:
+            # Use Responses API for Web Search
+            responses_input = []
+            for m in req.messages:
+                content_list = []
+                if isinstance(m.content, str):
+                    content_list.append({"type": "input_text", "text": m.content})
+                else:
+                    for item in m.content:
+                        if isinstance(item, dict):
+                            if item.get("type") == "text":
+                                content_list.append({"type": "input_text", "text": item.get("text")})
+                            elif item.get("type") == "image_url":
+                                url = item.get("image_url", {}).get("url")
+                                if url:
+                                    content_list.append({"type": "input_image", "image_url": url})
+                
+                if content_list:
+                    responses_input.append({
+                        "role": m.role,
+                        "content": content_list
+                    })
+            
+            tools = [{"type": "web_search"}]
+
+            if req.stream:
+                stream = client.responses.create(
+                    model=model_id,
+                    input=responses_input,
+                    tools=tools,
+                    stream=True
+                )
+
+                def stream_generator():
+                    try:
+                        print("Start streaming...")
+                        for chunk in stream:
+                            # print(f"Chunk received: {chunk}") # Debug logging
+                            if hasattr(chunk, "type"):
+                                print(f"Chunk type: {chunk.type}")
+                                if chunk.type == "response.output_text.delta":
+                                    yield f"data: {json.dumps({'content': chunk.delta})}\n\n"
+                                elif chunk.type == "response.web_search_call.searching":
+                                    yield f"data: {json.dumps({'type': 'searching', 'status': 'start'})}\n\n"
+                                elif chunk.type == "response.web_search_call.completed":
+                                    yield f"data: {json.dumps({'type': 'searching', 'status': 'end'})}\n\n"
+                                elif chunk.type == "response.output_item.added":
+                                    # Capture search query if available in added item
+                                    if hasattr(chunk, "item") and hasattr(chunk.item, "type") and chunk.item.type == "web_search_call":
+                                        if hasattr(chunk.item, "action") and chunk.item.action and hasattr(chunk.item.action, "query"):
+                                            query = chunk.item.action.query
+                                            yield f"data: {json.dumps({'type': 'searching', 'status': 'query', 'query': query})}\n\n"
+                                elif chunk.type == "response.failed":
+                                    error_msg = "Unknown response failure"
+                                    if hasattr(chunk, "response") and chunk.response and hasattr(chunk.response, "error") and chunk.response.error:
+                                         error_msg = chunk.response.error.message
+                                    elif hasattr(chunk, "error") and chunk.error:
+                                        error_msg = chunk.error.message if hasattr(chunk.error, "message") else str(chunk.error)
+                                    yield f"data: {json.dumps({'error': error_msg})}\n\n"
+                                elif chunk.type == "error":
+                                    error_msg = chunk.message if hasattr(chunk, "message") else "Unknown stream error"
+                                    yield f"data: {json.dumps({'error': error_msg})}\n\n"
+                                elif chunk.type == "response.completed":
+                                    if hasattr(chunk.response, "usage") and chunk.response.usage:
+                                        # Map usage fields if necessary, or just dump it
+                                        usage = {
+                                            "total_tokens": chunk.response.usage.total_tokens
+                                        }
+                                        yield f"data: {json.dumps({'usage': usage})}\n\n"
+                        yield "data: [DONE]\n\n"
+                    except Exception as e:
+                         print(f"Stream Error: {e}")
+                         yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                         yield "data: [DONE]\n\n"
+
+                return StreamingResponse(stream_generator(), media_type="text/event-stream")
+            else:
+                resp = client.responses.create(
+                    model=model_id,
+                    input=responses_input,
+                    tools=tools
+                )
+                
+                content = ""
+                if hasattr(resp, "output"):
+                    for item in resp.output:
+                        if getattr(item, "type", "") == "message":
+                            for c in getattr(item, "content", []):
+                                if getattr(c, "type", "") == "text":
+                                    content += getattr(c, "text", "")
+                
+                return ChatResponse(
+                    content=content,
+                    model=resp.model,
+                    response_id=resp.id,
+                    created=resp.created_at, # Note: created_at vs created
+                    usage={
+                        "prompt_tokens": resp.usage.input_tokens if resp.usage else 0,
+                        "completion_tokens": resp.usage.output_tokens if resp.usage else 0,
+                        "total_tokens": resp.usage.total_tokens if resp.usage else 0
+                    }
+                )
+
+        # Legacy / Standard Chat Completion path
         messages = []
         for m in req.messages:
             if isinstance(m.content, str):

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>你的豆包</title>
+  <title>豆包 App-火山方舟版</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Markdown & Highlight Support -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -193,7 +193,7 @@
                     <!-- Feature Mock Icons -->
                     <div class="flex items-center gap-3 text-xs font-medium text-gray-500">
                         <button class="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded-md transition"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="text-blue-500"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> 深度思考</button>
-                        <button class="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded-md transition"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> 联网搜索</button>
+                        <button id="web-search-btn" class="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded-md transition text-gray-500"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> 联网搜索</button>
                         <button class="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded-md transition"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> 图像生成</button>
                     </div>
                  </div>
@@ -235,6 +235,7 @@
     let currentId = null;
     let pendingImages = []; // Store base64 images
     let settings = { systemPrompt: "" };
+    let webSearchEnabled = false;
 
     function loadSettings() {
       try {
@@ -305,7 +306,13 @@
         const bubble = document.createElement("div");
         bubble.className = "px-4 py-3 rounded-2xl overflow-hidden max-w-[85%]";
         
-        // 创建 Markdown 容器
+        // Status/Thought Area (Initially hidden)
+        const statusDiv = document.createElement("div");
+        statusDiv.className = "hidden text-xs text-gray-500 mb-2 p-2 bg-gray-50 rounded border border-gray-100 flex items-center gap-2";
+        statusDiv.innerHTML = `<span class="animate-pulse">✨</span> <span class="status-text">思考中...</span>`;
+        bubble.appendChild(statusDiv);
+        
+        // Markdown Container
         const markdownDiv = document.createElement("div");
         markdownDiv.className = "markdown-body text-sm leading-relaxed";
 
@@ -356,6 +363,12 @@
           bubble.className += " bg-transparent pl-0 text-gray-900"; 
            // Override markdown styles for bot bubble
            markdownDiv.style.color = '#1f2937';
+           
+           // Show status if present in message metadata (we'll need to store it in conversation)
+           if (m.statusText) {
+             statusDiv.classList.remove("hidden");
+             statusDiv.querySelector(".status-text").textContent = m.statusText;
+           }
         }
         box.appendChild(row);
         row.appendChild(bubble);
@@ -495,7 +508,8 @@
 
         const req = { 
           messages: apiMessages,
-          stream: true
+          stream: true,
+          web_search: webSearchEnabled
         };
         const resp = await fetch("http://localhost:8000/api/chat", {
           method: "POST",
@@ -520,8 +534,18 @@
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n\n");
-          buffer = lines.pop(); // 保留未完成的块
+          
+          let lines = buffer.split("\n\n");
+          // The last line might be incomplete, so we keep it in the buffer
+          // UNLESS the stream is done, but we are inside the loop so we assume more might come
+          // Actually, standard SSE events end with \n\n. If the last part doesn't have it, it's incomplete.
+          
+          // However, split("\n\n") will give an empty string at the end if the buffer ends with \n\n
+          // Example: "data: {}\n\n".split("\n\n") -> ["data: {}", ""]
+          // Example: "data: {}\n\ndata:".split("\n\n") -> ["data: {}", "data:"]
+          
+          // So we should process all items except the last one, and set buffer to the last one.
+          buffer = lines.pop(); 
 
           for (const line of lines) {
             if (line.startsWith("data: ")) {
@@ -529,20 +553,37 @@
               if (dataStr === "[DONE]") break;
               try {
                 const data = JSON.parse(dataStr);
+                
+                // Handle search status
+                if (data.type === 'searching') {
+                   if (data.status === 'start') {
+                      assistantMsg.statusText = "正在分析请求，准备调用搜索工具...";
+                      saveConversations();
+                      renderMessages();
+                   } else if (data.status === 'query') {
+                      assistantMsg.statusText = `正在搜索: "${data.query}"`;
+                      saveConversations();
+                      renderMessages();
+                   } else if (data.status === 'end') {
+                      assistantMsg.statusText = "搜索完成，正在生成回答...";
+                      saveConversations();
+                      renderMessages();
+                   }
+                }
+
                 if (data.content) {
-                  // Currently backend only returns text for assistant
-                  // So we append to string or update the text part if we were to support rich response
-                  // But assistantMsg.content is initialized as string "", so we just append.
-                  // If we change assistantMsg.content to be array, we need logic here.
-                  // For now, let's keep assistant response as simple string.
                   assistantMsg.content += data.content;
                   saveConversations();
-                  // For efficient streaming update, we might want to just update the last bubble's innerHTML
-                  // But renderMessages is safe
                   renderMessages(); 
                 }
                 if (data.usage) {
                   setStatus("tokens：" + data.usage.total_tokens);
+                }
+                if (data.error) {
+                  assistantMsg.content += `\n\n❌ Error: ${data.error}`;
+                  setStatus("Error");
+                  saveConversations();
+                  renderMessages();
                 }
               } catch (e) {
                 console.error("解析流数据失败", e);
@@ -615,6 +656,18 @@
     };
     
     document.getElementById("settings-btn").onclick = () => toggleSettings(true);
+
+    document.getElementById("web-search-btn").onclick = function() {
+      webSearchEnabled = !webSearchEnabled;
+      const btn = document.getElementById("web-search-btn");
+      if (webSearchEnabled) {
+        btn.classList.remove("text-gray-500", "hover:bg-gray-100");
+        btn.classList.add("text-blue-600", "bg-blue-50", "hover:bg-blue-100");
+      } else {
+        btn.classList.add("text-gray-500", "hover:bg-gray-100");
+        btn.classList.remove("text-blue-600", "bg-blue-50", "hover:bg-blue-100");
+      }
+    };
 
     loadSettings();
     loadConversations();

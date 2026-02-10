@@ -1,6 +1,6 @@
 ---
 name: "smart-push"
-description: "Updates README.md with changelog/version info before pushing to GitHub. Invoke when user asks to push code, release version, or sync to remote."
+description: "Updates README.md with changelog/version info, PREVIEWS it for user approval, then pushes to GitHub. Invoke when user asks to push code, release version, or sync to remote."
 ---
 
 # Smart Push with README Update
@@ -21,10 +21,16 @@ When the user requests to push code or release a version:
     *   Read `README.md`.
     *   Insert the changelog/updates in a dedicated "Recent Updates" or "Changelog" section.
     *   Ensure the format matches the existing file style.
-4.  **Commit Documentation**:
+4.  **Preview and Confirm (CRITICAL)**:
+    *   **STOP** and show the user the updated `README.md` content or the diff.
+    *   **Ask for explicit confirmation** (e.g., "Does this changelog look good? Should I proceed with the push?").
+    *   **Do NOT** run git commit or push until the user says "yes" or "confirm".
+5.  **Commit Documentation**:
+    *   (Only after confirmation)
     *   `git add README.md`
     *   `git commit -m "docs: update README with latest changes"`
-5.  **Push**:
+6.  **Push**:
+    *   (Only after confirmation)
     *   Execute `git push`.
 
 ## Usage
