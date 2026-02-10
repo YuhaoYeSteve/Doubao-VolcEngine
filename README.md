@@ -37,8 +37,8 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/YuhaoYeSteve/volcengine-examples.git
-cd volcengine-examples
+git clone https://github.com/YuhaoYeSteve/Doubao-VolcEngine.git
+cd Doubao-VolcEngine
 ```
 
 ### 2. 安装依赖
@@ -96,6 +96,9 @@ python -m uvicorn ark_server:app --host 0.0.0.0 --port 8000
 - 默认使用的模型接入点为 `doubao-seed-1-8-251228`，如需更改请修改 `ark_server.py` 中的 `model` 参数。
 
 ## 📅 更新日志
+
+- **v4.0.1** (2026-02-10)
+  - 📝 文档：更新项目仓库地址为 `Doubao-VolcEngine`。
 
 - **v4.0.0** (2026-02-10)
   - 🚀 重磅更新：集成火山引擎联网搜索 (Web Search) 能力，支持实时获取互联网信息。

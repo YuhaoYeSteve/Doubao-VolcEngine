@@ -37,8 +37,8 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/YuhaoYeSteve/volcengine-examples.git
-cd volcengine-examples
+git clone https://github.com/YuhaoYeSteve/Doubao-VolcEngine.git
+cd Doubao-VolcEngine
 ```
 
 ### 2. 安装依赖
