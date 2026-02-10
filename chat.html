@@ -217,6 +217,14 @@
       </div>
       <div class="space-y-4">
         <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+          <input type="password" id="setting-api-key" class="w-full border rounded p-2" placeholder="ARK_API_KEY">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Model ID</label>
+          <input type="text" id="setting-model-id" class="w-full border rounded p-2" placeholder="doubao-seed-1-8-251228">
+        </div>
+        <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">System Prompt (人设)</label>
           <textarea id="setting-system-prompt" class="w-full border rounded p-2 h-24 resize-none" placeholder="例如：你是一个资深的 Python 工程师..."></textarea>
         </div>
@@ -234,20 +242,24 @@
     let conversations = [];
     let currentId = null;
     let pendingImages = []; // Store base64 images
-    let settings = { systemPrompt: "" };
+    let settings = { systemPrompt: "", apiKey: "", modelId: "" };
     let webSearchEnabled = false;
 
     function loadSettings() {
       try {
-        settings = JSON.parse(localStorage.getItem(LS_SETTINGS_KEY) || '{"systemPrompt": ""}');
+        const defaultSettings = { systemPrompt: "", apiKey: "", modelId: "" };
+        const saved = JSON.parse(localStorage.getItem(LS_SETTINGS_KEY) || '{}');
+        settings = { ...defaultSettings, ...saved };
       } catch {
-        settings = { systemPrompt: "" };
+        settings = { systemPrompt: "", apiKey: "", modelId: "" };
       }
     }
     
     function toggleSettings(show) {
       const modal = document.getElementById("settings-modal");
       if (show) {
+        document.getElementById("setting-api-key").value = settings.apiKey || "";
+        document.getElementById("setting-model-id").value = settings.modelId || "";
         document.getElementById("setting-system-prompt").value = settings.systemPrompt || "";
         modal.classList.remove("hidden");
         modal.classList.add("flex");
@@ -258,6 +270,8 @@
     }
 
     function saveSettings() {
+      settings.apiKey = document.getElementById("setting-api-key").value.trim();
+      settings.modelId = document.getElementById("setting-model-id").value.trim();
       settings.systemPrompt = document.getElementById("setting-system-prompt").value.trim();
       localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(settings));
       toggleSettings(false);
@@ -509,7 +523,9 @@
         const req = { 
           messages: apiMessages,
           stream: true,
-          web_search: webSearchEnabled
+          web_search: webSearchEnabled,
+          api_key: settings.apiKey || undefined,
+          model: settings.modelId || undefined
         };
         const resp = await fetch("http://localhost:8000/api/chat", {
           method: "POST",
