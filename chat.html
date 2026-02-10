@@ -309,8 +309,14 @@
       renderConversationList();
       renderMessages();
     }
-    function renderMessages() {
+    function renderMessages(checkUserScroll = false) {
       const box = document.getElementById("messages");
+      
+      // Capture current state for smart scrolling
+      const previousScrollTop = box.scrollTop;
+      const distToBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
+      const isNearBottom = distToBottom <= 100;
+
       box.innerHTML = "";
       const c = conversations.find(x => x.id === currentId);
       if (!c) return;
@@ -387,7 +393,17 @@
         box.appendChild(row);
         row.appendChild(bubble);
       });
-      box.scrollTop = box.scrollHeight;
+      
+      // Smart Scroll Logic
+      if (checkUserScroll) {
+          if (isNearBottom) {
+              box.scrollTop = box.scrollHeight;
+          } else {
+              box.scrollTop = previousScrollTop;
+          }
+      } else {
+          box.scrollTop = box.scrollHeight;
+      }
     }
     function createConversation() {
       const id = uid();
@@ -590,7 +606,7 @@
                 if (data.content) {
                   assistantMsg.content += data.content;
                   saveConversations();
-                  renderMessages(); 
+                  renderMessages(true); 
                 }
                 if (data.usage) {
                   setStatus("tokens：" + data.usage.total_tokens);

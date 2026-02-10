@@ -93,6 +93,35 @@ def chat(req: ChatRequest):
         
         # Configure tools only if web_search is enabled
         tools = [{"type": "web_search"}] if req.web_search else None
+        
+        # Inject System Prompt for Web Search Citations
+        if req.web_search:
+            search_prompt = """
+## 联网搜索引用要求
+请在回答中引用搜索到的资料。
+引用格式：在正文中相关句子后使用 `[序号]` 标记，并在回答末尾列出参考资料。
+参考资料格式：
+### 📚 参考资料
+1. [标题](URL)
+2. [标题](URL)
+"""
+            # Check if there is an existing system message
+            system_found = False
+            for item in responses_input:
+                if item.get("role") == "system":
+                    # Append to existing system message content
+                    # Content is a list of dicts: [{"type": "input_text", "text": "..."}]
+                    if isinstance(item["content"], list):
+                        item["content"].append({"type": "input_text", "text": "\n" + search_prompt})
+                    system_found = True
+                    break
+            
+            if not system_found:
+                # Prepend new system message
+                responses_input.insert(0, {
+                    "role": "system",
+                    "content": [{"type": "input_text", "text": search_prompt}]
+                })
 
         if req.stream:
             stream = client.responses.create(
