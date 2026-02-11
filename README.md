@@ -1,5 +1,7 @@
 # 豆包 App-火山方舟版
 
+![Last Commit](https://img.shields.io/github/last-commit/YuhaoYeSteve/Doubao-VolcEngine?style=flat-square&color=5D5FEF) ![Commit Activity](https://img.shields.io/github/commit-activity/m/YuhaoYeSteve/Doubao-VolcEngine?style=flat-square&color=3B82F6) ![Repo Size](https://img.shields.io/github/repo-size/YuhaoYeSteve/Doubao-VolcEngine?style=flat-square&color=10B981)
+
 > 本项目完全基于 Trae 进行 Vibe Coding 构建。
 
 本项目基于火山引擎的 **火山方舟 (Volcengine Ark)** 平台，通过集成 **Python SDK** 来调用 **Doubao (豆包)** 大模型。
@@ -100,6 +102,11 @@ python -m uvicorn ark_server:app --host 0.0.0.0 --port 8000
 - 本项目仅供学习和演示使用。
 - 前端使用 CDN 加载 Tailwind CSS，请确保网络通畅。
 - 默认使用的模型接入点为 `doubao-seed-1-8-251228`，如需更改请修改 `ark_server.py` 中的 `model` 参数。
+
+## 🚧 最近开发动态 (Auto)
+
+<!--START_SECTION:recent_commits-->
+<!--END_SECTION:recent_commits-->
 
 ## 📅 更新日志
 

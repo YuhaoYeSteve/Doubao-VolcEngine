@@ -1,0 +1,77 @@
+name: Update README with Recent Commits
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  update-readme:
+    name: Update README with Recent Commits
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Commit List
+        id: commits
+        run: |
+          echo "### 最新 5 次提交记录" > commits.md
+          echo "" >> commits.md
+          # Format: - [`hash`](url) Message (Date)
+          git log -n 5 --pretty=format:"- [\`%h\`](https://github.com/${{ github.repository }}/commit/%H) %s (%cd)" --date=short >> commits.md
+          echo "" >> commits.md
+          echo "> 自动更新于 $(date +'%Y-%m-%d %H:%M:%S')" >> commits.md
+          
+      - name: Update README.md
+        run: |
+          python3 -c "
+          import os
+          
+          readme_path = 'README.md'
+          commits_path = 'commits.md'
+          start_marker = '<!--START_SECTION:recent_commits-->'
+          end_marker = '<!--END_SECTION:recent_commits-->'
+          
+          if os.path.exists(readme_path) and os.path.exists(commits_path):
+              with open(readme_path, 'r', encoding='utf-8') as f:
+                  content = f.read()
+              
+              with open(commits_path, 'r', encoding='utf-8') as f:
+                  new_commits = f.read()
+              
+              start_idx = content.find(start_marker)
+              end_idx = content.find(end_marker)
+              
+              if start_idx != -1 and end_idx != -1:
+                  new_content = content[:start_idx + len(start_marker)] + '\n\n' + new_commits + '\n' + content[end_idx:]
+                  
+                  # Only write if content changed (ignoring timestamp for simplicity, but git diff handles that)
+                  with open(readme_path, 'w', encoding='utf-8') as f:
+                      f.write(new_content)
+                  print('README updated successfully.')
+              else:
+                  print('Markers not found in README.md')
+          else:
+              print('Files not found.')
+          "
+          
+      - name: Commit and Push
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add README.md
+          # Check if there are changes before committing
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "docs: auto-update recent commits in README [skip ci]"
+            git push
+          fi
