@@ -171,7 +171,7 @@
       </header>
 
       <!-- Messages Container -->
-      <section id="messages" class="flex-1 overflow-y-auto px-8 py-20 space-y-8 scroll-smooth"></section>
+      <section id="messages" class="flex-1 overflow-y-auto px-8 py-20 space-y-8"></section>
 
       <!-- Floating Input Area -->
       <footer class="p-6 pb-8 bg-gradient-to-t from-white via-white to-transparent">
@@ -397,20 +397,99 @@
       // Smart Scroll Logic
       if (checkUserScroll) {
           if (isNearBottom) {
-              box.scrollTop = box.scrollHeight;
-          } else {
-              box.scrollTop = previousScrollTop;
+              scrollToBottom();
           }
       } else {
-          box.scrollTop = box.scrollHeight;
+          // Initial render or non-stream update: force scroll to bottom
+          scrollToBottom();
+          // Reset scroll state on full render
+          userScrolledUp = false;
       }
     }
+
+    // Scroll State Management
+    let userScrolledUp = false;
+    const msgBox = document.getElementById("messages");
+    
+    msgBox.addEventListener('scroll', () => {
+        const distToBottom = msgBox.scrollHeight - msgBox.scrollTop - msgBox.clientHeight;
+        // Threshold to 20px to avoid precision issues
+        userScrolledUp = distToBottom > 20; 
+    });
+
+    function scrollToBottom() {
+        const box = document.getElementById("messages");
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function updateLastMessage(content, statusText) {
+      const box = document.getElementById("messages");
+      const lastRow = box.lastElementChild;
+      if (!lastRow) return;
+      
+      const bubble = lastRow.querySelector(".px-4"); 
+      if (!bubble) return;
+
+      // Update Status
+      if (statusText) {
+         const statusDiv = bubble.querySelector(".text-gray-500.mb-2");
+         if (statusDiv) {
+             statusDiv.classList.remove("hidden");
+             statusDiv.querySelector(".status-text").textContent = statusText;
+         }
+      }
+
+      // Update Content
+      if (content !== undefined) {
+         const markdownDiv = bubble.querySelector(".markdown-body");
+         if (markdownDiv) {
+             // Check if content is actually different to avoid unnecessary reflows? 
+             // Actually marked.parse might return same HTML.
+             // But for streaming, it always grows.
+             markdownDiv.innerHTML = marked.parse(content);
+             
+             // Re-apply highlight
+             markdownDiv.querySelectorAll('pre code').forEach((block) => {
+                 hljs.highlightElement(block);
+             });
+             // Re-apply copy buttons
+             markdownDiv.querySelectorAll('pre').forEach((pre) => {
+                if (pre.querySelector('.copy-btn')) return;
+                const btn = document.createElement('button');
+                btn.className = 'copy-btn';
+                btn.textContent = 'Copy';
+                btn.onclick = () => {
+                    navigator.clipboard.writeText(pre.innerText).then(() => {
+                        btn.textContent = 'Copied!';
+                        setTimeout(() => btn.textContent = 'Copy', 2000);
+                    });
+                };
+                pre.appendChild(btn);
+             });
+         }
+      }
+
+      // Smart Scroll: Only scroll if user hasn't scrolled up
+      if (!userScrolledUp) {
+          scrollToBottom();
+      }
+    }
+
     function createConversation() {
       const id = uid();
       const conv = { id, title: "新会话", messages: [] };
       conversations.unshift(conv);
       saveConversations();
       selectConversation(id);
+      
+      // Enable input if it was disabled (e.g., previous chat was stuck)
+      const el = document.getElementById("input");
+      const btn = document.getElementById("send-btn");
+      el.disabled = false;
+      btn.disabled = false;
+      document.getElementById("upload-btn").disabled = false;
+      btn.classList.remove("opacity-50", "cursor-not-allowed");
+      el.focus();
     }
     function deleteConversation() {
       if (!currentId) return;
@@ -448,7 +527,7 @@
       `;
       row.appendChild(bubble);
       box.appendChild(row);
-      box.scrollTop = box.scrollHeight;
+      scrollToBottom();
     }
     function removeLoading() {
       const el = document.getElementById("loading-bubble");
@@ -493,7 +572,10 @@
       const btn = document.getElementById("send-btn");
       const text = el.value.trim();
       
-      if ((!text && pendingImages.length === 0) || el.disabled) return;
+      // Allow empty text if images are present
+      if ((!text && pendingImages.length === 0)) return;
+      // Do not block if disabled, just return (though UI should prevent this)
+      if (el.disabled) return;
       
       // 禁用输入和按钮
       el.disabled = true;
@@ -501,8 +583,16 @@
       btn.classList.add("opacity-50", "cursor-not-allowed");
       document.getElementById("upload-btn").disabled = true;
 
+      // Ensure conversation exists
       if (!currentId) createConversation();
-      const c = conversations.find(x => x.id === currentId);
+      
+      // Re-fetch conversation object to ensure we have the latest reference
+      let c = conversations.find(x => x.id === currentId);
+      if (!c) {
+          // Fallback if currentId is invalid for some reason
+          createConversation();
+          c = conversations.find(x => x.id === currentId);
+      }
 
       // Construct Message Content
       let userContent;
@@ -557,86 +647,107 @@
         const assistantMsg = { role: "assistant", content: "", created: Date.now() };
         c.messages.push(assistantMsg);
         saveConversations();
+        
+        // Reset scroll state before starting stream
+        userScrolledUp = false;
+        
+        // IMPORTANT: Render the empty bubble FIRST so updateLastMessage has a target
+        renderMessages();
 
         const reader = resp.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          
-          let lines = buffer.split("\n\n");
-          // The last line might be incomplete, so we keep it in the buffer
-          // UNLESS the stream is done, but we are inside the loop so we assume more might come
-          // Actually, standard SSE events end with \n\n. If the last part doesn't have it, it's incomplete.
-          
-          // However, split("\n\n") will give an empty string at the end if the buffer ends with \n\n
-          // Example: "data: {}\n\n".split("\n\n") -> ["data: {}", ""]
-          // Example: "data: {}\n\ndata:".split("\n\n") -> ["data: {}", "data:"]
-          
-          // So we should process all items except the last one, and set buffer to the last one.
-          buffer = lines.pop(); 
+        // Typewriter Effect Queue
+        let streamBuffer = ""; // Full content from backend
+        let isStreamActive = true;
+        let typeWriterLoop = null;
+        
+        try {
+            // Start a dedicated render loop for smooth typing
+            typeWriterLoop = setInterval(() => {
+                if (assistantMsg.content.length < streamBuffer.length) {
+                    // Dynamic speed: if backlog is large, type faster
+                    const backlog = streamBuffer.length - assistantMsg.content.length;
+                    const step = backlog > 50 ? 5 : (backlog > 20 ? 2 : 1);
+                    
+                    assistantMsg.content += streamBuffer.slice(assistantMsg.content.length, assistantMsg.content.length + step);
+                    updateLastMessage(assistantMsg.content);
+                    saveConversations(); // Optional: save less frequently if needed
+                } else if (!isStreamActive) {
+                    // Stream finished and buffer cleared
+                    clearInterval(typeWriterLoop);
+                    renderMessages();
+                    setStatus("完成");
+                }
+            }, 16); // ~60fps
 
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const dataStr = line.slice(6);
-              if (dataStr === "[DONE]") break;
-              try {
-                const data = JSON.parse(dataStr);
-                
-                // Handle search status
-                if (data.type === 'searching') {
-                   if (data.status === 'start') {
-                      assistantMsg.statusText = "正在分析请求，准备调用搜索工具...";
-                      saveConversations();
-                      renderMessages();
-                   } else if (data.status === 'query') {
-                      assistantMsg.statusText = `正在搜索: "${data.query}"`;
-                      saveConversations();
-                      renderMessages();
-                   } else if (data.status === 'end') {
-                      assistantMsg.statusText = "搜索完成，正在生成回答...";
-                      saveConversations();
-                      renderMessages();
-                   }
-                }
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              
+              let lines = buffer.split("\n\n");
+              buffer = lines.pop(); 
 
-                if (data.content) {
-                  assistantMsg.content += data.content;
-                  saveConversations();
-                  renderMessages(true); 
+              for (const line of lines) {
+                if (line.startsWith("data: ")) {
+                  const dataStr = line.slice(6);
+                  if (dataStr === "[DONE]") break;
+                  try {
+                    const data = JSON.parse(dataStr);
+                    
+                    // Handle search status
+                    if (data.type === 'searching') {
+                       // Status updates happen immediately, bypassing typewriter
+                       if (data.status === 'start') {
+                          assistantMsg.statusText = "正在分析请求，准备调用搜索工具...";
+                          saveConversations();
+                          updateLastMessage(undefined, assistantMsg.statusText);
+                       } else if (data.status === 'query') {
+                          assistantMsg.statusText = `正在搜索: "${data.query}"`;
+                          saveConversations();
+                          updateLastMessage(undefined, assistantMsg.statusText);
+                       } else if (data.status === 'end') {
+                          assistantMsg.statusText = "搜索完成，正在生成回答...";
+                          saveConversations();
+                          updateLastMessage(undefined, assistantMsg.statusText);
+                       }
+                    }
+
+                    if (data.content) {
+                      // Push to buffer, let the loop handle rendering
+                      streamBuffer += data.content;
+                    }
+                    if (data.usage) {
+                      setStatus("tokens：" + data.usage.total_tokens);
+                    }
+                    if (data.error) {
+                      streamBuffer += `\n\n❌ Error: ${data.error}`;
+                      setStatus("Error");
+                    }
+                  } catch (e) {
+                    console.error("解析流数据失败", e);
+                  }
                 }
-                if (data.usage) {
-                  setStatus("tokens：" + data.usage.total_tokens);
-                }
-                if (data.error) {
-                  assistantMsg.content += `\n\n❌ Error: ${data.error}`;
-                  setStatus("Error");
-                  saveConversations();
-                  renderMessages();
-                }
-              } catch (e) {
-                console.error("解析流数据失败", e);
               }
             }
-          }
-        }
-        renderMessages();
-        setStatus("完成");
-      } catch (e) {
-        removeLoading();
-        setStatus("错误：" + e.message);
-        // Show error in chat
-        c.messages.push({ 
-          role: "assistant", 
-          content: `❌ 发送失败: ${e.message}`, 
-          created: Date.now() 
-        });
-        saveConversations();
-        renderMessages();
-      } finally {
+            isStreamActive = false; // Signal loop to finish up
+        } catch (e) {
+            if (typeWriterLoop) clearInterval(typeWriterLoop);
+            isStreamActive = false;
+            
+            removeLoading();
+            setStatus("错误：" + e.message);
+            // Show error in chat
+            c.messages.push({ 
+              role: "assistant", 
+              content: `❌ 发送失败: ${e.message}`, 
+              created: Date.now() 
+            });
+            saveConversations();
+            renderMessages();
+        } finally {
         // 恢复输入和按钮
         el.disabled = false;
         btn.disabled = false;
