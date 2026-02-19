@@ -1,0 +1,155 @@
+:root {
+  /* Color Palette */
+  --bg-app: #F7F8FA;
+  --bg-sidebar: #F7F8FA;
+  --bg-user-bubble: #EBF5FF;
+  --bg-code-block: #161b22;
+  --color-text-code-user: #c9d1d9;
+  --color-text-code-bot: #24292f;
+  
+  /* Glassmorphism */
+  --glass-panel: rgba(255, 255, 255, 0.7);
+  --glass-sidebar: rgba(250, 250, 250, 0.8);
+  --glass-button: rgba(37, 99, 235, 0.9);
+  --glass-input: rgba(255, 255, 255, 0.8);
+  
+  /* Typography */
+  --font-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Glassmorphism utilities */
+.glass-panel {
+  background: var(--glass-panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+.glass-sidebar {
+  background: var(--glass-sidebar);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid rgba(0,0,0,0.05);
+}
+.glass-button {
+  background: var(--glass-button); /* blue-600 with opacity */
+  backdrop-filter: blur(4px);
+}
+.glass-button:hover {
+  background: rgba(37, 99, 235, 1);
+}
+.glass-input {
+  background: var(--glass-input);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  /* Permanent Glow Effect */
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.02), 
+    0 2px 4px -1px rgba(0, 0, 0, 0.02),
+    0 0 0 1px rgba(255,255,255,0.5) inset,
+    0 0 15px rgba(59, 130, 246, 0.15); /* Soft blue halo always on */
+  transition: all 0.3s ease;
+}
+.glass-input:focus-within {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(59, 130, 246, 0.4); 
+  /* Intensified Glow on Focus */
+  box-shadow: 
+    0 0 0 4px rgba(59, 130, 246, 0.1), 
+    0 10px 30px -5px rgba(59, 130, 246, 0.25), 
+    0 0 20px rgba(59, 130, 246, 0.1) inset;
+}
+
+.markdown-body {
+  box-sizing: border-box;
+  min-width: 200px;
+  max-width: 98%;
+  margin: 0 auto;
+  padding: 0;
+  background-color: transparent !important;
+  font-size: 15px; /* Consider replacing with rem/em if possible, but keeping for now */
+}
+.markdown-body pre {
+  position: relative;
+  background-color: var(--bg-code-block) !important;
+  border-radius: 6px;
+}
+.copy-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: var(--color-text-code-user);
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s;
+}
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+/* Override GitHub markdown styles for dark/light bubbles */
+.user-bubble .markdown-body {
+  color: white; /* Actually user bubble is light blue, so text should be dark. Checking original CSS... */
+  /* Wait, original CSS had user bubble text as #111827 (dark) in inline styles, but here .user-bubble .markdown-body had color: white in <style> block? 
+     Let's check original line 88: .user-bubble .markdown-body { color: white; }
+     But line 379: markdownDiv.style.color = '#111827'; overrides it.
+     So the CSS rule was actually wrong or overridden. I should fix this to be consistent.
+     Since user bubble is #EBF5FF (light blue), text must be dark.
+  */
+  color: #111827; 
+}
+.user-bubble .markdown-body code {
+  background-color: rgba(0,0,0,0.05); /* Adjusted for light background */
+}
+.bot-bubble .markdown-body {
+  color: #24292f;
+}
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+}
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  margin: 0 2px;
+  background-color: #6b7280;
+  border-radius: 50%;
+  animation: typing 1.4s infinite ease-in-out both;
+}
+.typing-dot:nth-child(1) { animation-delay: -0.32s; }
+.typing-dot:nth-child(2) { animation-delay: -0.16s; }
+@keyframes typing {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* Sidebar Toggle for Mobile */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 40;
+}
+.sidebar-open .sidebar-overlay {
+  display: block;
+}
+@media (max-width: 768px) {
+  aside {
+    position: fixed;
+    left: -240px;
+    top: 0;
+    bottom: 0;
+    z-index: 50;
+    transition: left 0.3s ease;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  }
+  .sidebar-open aside {
+    left: 0;
+  }
+}

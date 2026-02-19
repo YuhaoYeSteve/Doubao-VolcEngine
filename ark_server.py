@@ -5,6 +5,7 @@ import json
 import configparser
 from typing import List, Literal, Optional, Union, Any, Dict
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -19,6 +20,9 @@ app = FastAPI(
     description="Ark 文本对话 API",
     version="1.0.0",
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
