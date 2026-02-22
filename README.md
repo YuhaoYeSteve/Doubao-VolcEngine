@@ -106,6 +106,16 @@ python -m uvicorn ark_server:app --host 0.0.0.0 --port 8000
 ## 🚧 最近开发动态 (Auto)
 
 <!--START_SECTION:recent_commits-->
+
+### 最新 5 次提交记录
+
+- [`9544576`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/9544576e3043d018ad9e867fc5b32e430a0694e6) docs: release v5.4.0 - frontend refactor and design system (2026-02-22)
+- [`2c66eef`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/2c66eef72265b3c8ef8a52692b297d3574ecb02d) feat: release v5.4.0 with frontend refactoring and mobile support (2026-02-19)
+- [`40138ad`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/40138ad77e4281f084a6bed42ec3bebda1c5c9c1) docs: add badges and auto-update workflow for readme (2026-02-12)
+- [`dfe059d`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/dfe059da59af4ff943db8f51496e1f9564460251) feat: optimize chat streaming and scroll ux (v5.3.0) (2026-02-11)
+- [`a6ed3af`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/a6ed3af297aae6072b2eba95d7fcefa902266a01) feat(v5.2.0): add web search citations and improve scroll UX (2026-02-11)
+> 自动更新于 2026-02-22 03:25:21
+
 <!--END_SECTION:recent_commits-->
 
 ## 📅 更新日志
