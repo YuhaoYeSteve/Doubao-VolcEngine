@@ -1,6 +1,6 @@
 # 豆包 App-火山方舟版
 
-![Last Commit](https://img.shields.io/github/last-commit/YuhaoYeSteve/Doubao-VolcEngine?style=flat-square&color=5D5FEF) ![Commit Activity](https://img.shields.io/github/commit-activity/m/YuhaoYeSteve/Doubao-VolcEngine?style=flat-square&color=3B82F6) ![Repo Size](https://img.shields.io/github/repo-size/YuhaoYeSteve/Doubao-VolcEngine?style=flat-square&color=10B981)
+![Built with Trae](https://img.shields.io/badge/Built%20with-Trae-5D5FEF?style=flat-square) ![Last Commit](https://img.shields.io/github/last-commit/YuhaoYeSteve/Doubao-VolcEngine?style=flat-square&color=5D5FEF) ![Commit Activity](https://img.shields.io/github/commit-activity/m/YuhaoYeSteve/Doubao-VolcEngine?style=flat-square&color=3B82F6) ![Repo Size](https://img.shields.io/github/repo-size/YuhaoYeSteve/Doubao-VolcEngine?style=flat-square&color=10B981)
 
 > 本项目完全基于 Trae 进行 Vibe Coding 构建。
 
