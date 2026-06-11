@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>全流程监控 · Doubao Chat Pipeline Monitor</title>
+  <style>
+    :root {
+      /* 节点归属色：前端蓝 / 后端紫（对齐豆包品牌蓝 #2563eb / #3b82f6） */
+      --fe-color: #2563eb;      /* 前端节点：蓝 */
+      --fe-color-soft: #3b82f6; /* 前端柔和蓝 */
+      --fe-bg: #eff6ff;
+      --be-color: #7c3aed;      /* 后端节点：紫 */
+      --be-color-soft: #8b5cf6; /* 后端柔和紫 */
+      --be-bg: #f5f3ff;
+      --done: #16a34a;          /* 已完成：绿 */
+      --done-bg: #f0fdf4;
+      --active: #f59e0b;        /* 进行中：橙（仅图例语义保留） */
+      --active-bg: #fffbeb;
+      --error: #dc2626;         /* 错误：红 */
+      --error-bg: #fef2f2;
+      --idle: #cbd5e1;          /* 未到达：灰 */
+      --text: #1e293b;
+      --muted: #64748b;
+
+      /* 毛玻璃 / 品牌设计令牌（对齐 chat.css） */
+      --glass-panel: rgba(255, 255, 255, 0.7);
+      --glass-input: rgba(255, 255, 255, 0.8);
+      --glass-border: rgba(255, 255, 255, 0.5);
+      --brand: #2563eb;
+      --brand-soft: #3b82f6;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      /* 苹果系字体（对齐 chat.css 的 --font-base） */
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #F7F8FA;
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* 顶部：毛玻璃面板 */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--glass-panel);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 16px 28px;
+      box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: .2px; }
+    header p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+    .container { max-width: 1280px; margin: 0 auto; padding: 24px 28px 64px; }
+
+    /* ===== 输入区（glass-input 风格，常驻蓝色柔光） ===== */
+    .input-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 22px;
+      align-items: stretch;
+    }
+    .input-bar textarea {
+      flex: 1;
+      resize: vertical;
+      min-height: 48px;
+      max-height: 140px;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text);
+      /* 毛玻璃输入框 + 常驻柔和蓝色光晕 */
+      background: var(--glass-input);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(229, 231, 235, 0.6);
+      box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.02),
+        0 2px 4px -1px rgba(0, 0, 0, 0.02),
+        0 0 0 1px rgba(255,255,255,0.5) inset,
+        0 0 15px rgba(59, 130, 246, 0.15);
+      transition: all 0.3s ease;
+    }
+    .input-bar textarea:focus {
+      outline: none;
+      background: rgba(255, 255, 255, 0.95);
+      border-color: rgba(59, 130, 246, 0.4);
+      /* focus 时光晕增强 */
+      box-shadow:
+        0 0 0 4px rgba(59, 130, 246, 0.1),
+        0 10px 30px -5px rgba(59, 130, 246, 0.25),
+        0 0 20px rgba(59, 130, 246, 0.1) inset;
+    }
+    /* 蓝色毛玻璃按钮 + 柔和蓝光晕 */
+    .input-bar button {
+      padding: 0 26px;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: var(--radius-md);
+      background: rgba(37, 99, 235, 0.9);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0 6px 18px -4px rgba(37, 99, 235, 0.45);
+      transition: all 0.25s ease;
+    }
+    .input-bar button:hover:not(:disabled) {
+      background: rgba(37, 99, 235, 1);
+      box-shadow: 0 10px 24px -4px rgba(37, 99, 235, 0.55);
+      transform: translateY(-1px);
+    }
+    .input-bar button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+    /* ===== 图例（毛玻璃小卡） ===== */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px 20px;
+      margin-bottom: 20px;
+      padding: 12px 18px;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--glass-panel);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+    /* ===== 指标面板（毛玻璃卡） ===== */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 26px;
+    }
+    .metric {
+      background: var(--glass-panel);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+      transition: transform .25s ease, box-shadow .25s ease;
+    }
+    .metric:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(37, 99, 235, 0.1); }
+    .metric .label { font-size: 12px; color: var(--muted); }
+    .metric .value { font-size: 24px; font-weight: 700; margin-top: 6px; color: var(--text); }
+    .metric .unit { font-size: 12px; color: var(--muted); font-weight: 400; }
+
+    /* ===== 流程图：纵向时间轴 ===== */
+    /* 12 个节点从上到下排列，文字有充足横向空间 */
+    .flow {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+      padding: 6px 4px 18px;
+    }
+
+    .node {
+      position: relative;
+      width: 100%;
+      background: var(--glass-panel);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 2px solid var(--idle);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      transition: all .3s cubic-bezier(.4, 0, .2, 1);
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+    }
+    .node:hover { box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1); }
+    .node .idx {
+      width: 30px; height: 30px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: var(--idle);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .3s ease, box-shadow .3s ease;
+    }
+    .node .body { flex: 1; min-width: 0; }
+    .node .name { font-size: 14px; font-weight: 600; line-height: 1.35; }
+    .node .desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .node .side {
+      display: inline-block;
+      font-size: 10.5px;
+      padding: 1px 7px;
+      border-radius: 6px;
+      font-weight: 600;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+    .node .side.fe { color: var(--fe-color); background: var(--fe-bg); }
+    .node .side.be { color: var(--be-color); background: var(--be-bg); }
+    .node .timing {
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 90px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+
+    /* 连接线：竖向垂直线 + 自上而下流动填充动画 */
+    .connector {
+      width: 3px;
+      height: 18px;
+      margin-left: 27px;          /* 对齐到节点 idx 圆圈中线（padding 18 + 半径15 - 1.5） */
+      border-radius: 3px;
+      background: var(--idle);
+      position: relative;
+      overflow: hidden;
+      transition: background .3s ease;
+    }
+    /* 已通过：done 绿底 + 自上而下流动的高光条纹 */
+    .connector.passed {
+      background: var(--done);
+    }
+    .connector.passed::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,.85) 50%,
+        rgba(255,255,255,0) 100%);
+      background-size: 100% 200%;
+      animation: connector-flow 1.4s linear infinite;
+    }
+    @keyframes connector-flow {
+      0%   { background-position: 0 200%; }
+      100% { background-position: 0 -100%; }
+    }
+
+    /* ===== 节点归属色方案 ===== */
+    /* 前端节点 — 蓝 */
+    .node.fe { border-color: var(--fe-color); }
+    .node.fe .idx { background: var(--fe-color); }
+    .node.fe .side.fe { color: var(--fe-color); background: var(--fe-bg); }
+
+    /* 后端节点 — 紫 */
+    .node.be { border-color: var(--be-color); }
+    .node.be .idx { background: var(--be-color); }
+    .node.be .side.be { color: var(--be-color); background: var(--be-bg); }
+
+    /* 进行中：归属色高亮 + 呼吸外发光动画 */
+    .node.fe.active {
+      border-width: 3px;
+      animation: pulse-fe 1.6s ease-in-out infinite;
+    }
+    .node.be.active {
+      border-width: 3px;
+      animation: pulse-be 1.6s ease-in-out infinite;
+    }
+    .node.active .idx { box-shadow: 0 0 0 4px rgba(255,255,255,0.6); }
+    @keyframes pulse-fe {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,.28), 0 4px 16px rgba(15,23,42,.05); }
+      50%      { box-shadow: 0 0 0 8px rgba(37,99,235,0), 0 0 22px rgba(59,130,246,.45); }
+    }
+    @keyframes pulse-be {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,.28), 0 4px 16px rgba(15,23,42,.05); }
+      50%      { box-shadow: 0 0 0 8px rgba(124,58,237,0), 0 0 22px rgba(139,92,246,.45); }
+    }
+
+    /* 已完成：归属色标准边框，去发光 */
+    .node.fe.done, .node.be.done {
+      border-width: 2px;
+      animation: none;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+    }
+
+    /* 错误 */
+    .node.error {
+      border-color: var(--error);
+      border-width: 3px;
+      animation: none;
+      box-shadow: 0 0 0 4px rgba(220,38,38,.15), 0 4px 16px rgba(15,23,42,.06);
+    }
+    .node.error .idx { background: var(--error); }
+
+    /* 可选节点（虚线） */
+    .node.optional { opacity: .55; border-style: dashed; }
+    .node.optional.active, .node.optional.done { opacity: 1; }
+
+    /* ===== 详情面板（毛玻璃，节点内向下展开，横向铺满整行） ===== */
+    .node .detail {
+      display: none;
+      flex-basis: 100%;
+      width: 100%;
+      margin-top: 4px;
+      padding: 10px 12px;
+      background: rgba(241, 245, 249, 0.85);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.6);
+      border-radius: 10px;
+    }
+    .node .detail.open { display: block; animation: detail-in .2s ease; }
+    @keyframes detail-in {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .node .detail pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      max-height: 220px;
+      overflow: auto;
+      color: #334155;
+    }
+    .node .detail .detail-label {
+      font-size: 10px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* JSON 语法高亮 token 配色（浅色背景下的低饱和方案） */
+    .node .detail pre .tok-key  { color: #7c3aed; }            /* 键名：紫 */
+    .node .detail pre .tok-str  { color: #16a34a; }            /* 字符串：绿 */
+    .node .detail pre .tok-num  { color: #2563eb; }            /* 数字：蓝 */
+    .node .detail pre .tok-bool { color: #d97706; font-weight: 600; } /* 布尔：橙 */
+    .node .detail pre .tok-null { color: #94a3b8; font-style: italic; } /* null：灰斜体 */
+
+    /* ===== 错误信息条（毛玻璃红） ===== */
+    .error-bar {
+      display: none;
+      margin-top: 18px;
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      background: rgba(254, 242, 242, 0.8);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--error);
+      color: var(--error);
+      font-size: 13px;
+      box-shadow: 0 6px 20px rgba(220, 38, 38, 0.12);
+    }
+
+    /* ===== 回复内容预览（毛玻璃卡） ===== */
+    .reply-preview {
+      margin-top: 26px;
+      background: var(--glass-panel);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      box-shadow: 0 6px 22px rgba(15, 23, 42, 0.05);
+    }
+    .reply-preview h3 { margin: 0 0 10px; font-size: 13px; color: var(--muted); font-weight: 600; }
+    .reply-preview .content { font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+
+    /* ===== 清空会话按钮（次要按钮：白底蓝字描边） ===== */
+    .input-bar button.secondary {
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--brand);
+      border: 1px solid rgba(37, 99, 235, 0.5);
+      box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.2);
+    }
+    .input-bar button.secondary:hover:not(:disabled) {
+      background: rgba(239, 246, 255, 0.95);
+      box-shadow: 0 8px 18px -4px rgba(37, 99, 235, 0.28);
+      transform: translateY(-1px);
+    }
+
+    /* ===== 顶部 transcript 对话气泡区 ===== */
+    #transcript {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    #transcript:empty { display: none; }
+    .bubble {
+      max-width: 78%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    }
+    /* 用户气泡：右对齐，蓝底白字 */
+    .bubble.user {
+      align-self: flex-end;
+      background: var(--brand);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    /* 助手气泡：左对齐，白底/毛玻璃 */
+    .bubble.assistant {
+      align-self: flex-start;
+      background: var(--glass-input);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      color: var(--text);
+      border-bottom-left-radius: 4px;
+    }
+
+    /* ===== 轮次分组卡片 ===== */
+    #turns {
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+    }
+    .turn {
+      background: var(--glass-panel);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+      box-shadow: 0 6px 22px rgba(15, 23, 42, 0.05);
+    }
+    .turn-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .turn-title .turn-no {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--brand);
+      white-space: nowrap;
+    }
+    .turn-title .turn-summary {
+      font-size: 13px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .turn-title .turn-toggle {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: var(--brand);
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md, 8px);
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .turn-title .turn-toggle:hover {
+      background: var(--glass-border);
+    }
+    .turn-title .turn-toggle .chevron {
+      display: inline-block;
+      transition: transform 0.2s ease;
+    }
+    /* 折叠态：隐藏标题以外的全部内容 + 箭头旋转 */
+    .turn.collapsed > :not(.turn-title) {
+      display: none;
+    }
+    .turn.collapsed .turn-title {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+    .turn.collapsed .turn-toggle .chevron {
+      transform: rotate(-90deg);
+    }
+
+    /* ===== 窄屏响应式 ===== */
+    @media (max-width: 768px) {
+      .container { padding: 16px 16px 48px; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .node { padding: 12px 14px; gap: 10px; }
+      .node .timing { min-width: 64px; }
+      .turn { padding: 14px 14px; }
+      .bubble { max-width: 90%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>全流程监控 · Pipeline Monitor</h1>
+    <p>在下方输入消息并发送，实时观测「前端发消息 → 后端处理 → Ark SDK → SSE 流式返回 → 前端渲染」的完整链路。</p>
+  </header>
+
+  <div class="container">
+    <div class="input-bar">
+      <textarea id="input" placeholder="输入一条消息，按发送触发完整链路（Enter 发送，Shift+Enter 换行）"></textarea>
+      <button id="send-btn">发送</button>
+      <button id="clear-btn" class="secondary">清空会话</button>
+    </div>
+
+    <!-- 顶部对话气泡区：多轮累积 -->
+    <div id="transcript"><!-- 气泡由 monitor.js 渲染 --></div>
+
+    <div class="legend">
+      <span><i class="dot" style="background:var(--fe-color)"></i>前端阶段</span>
+      <span><i class="dot" style="background:var(--be-color)"></i>后端阶段</span>
+      <span><i class="dot" style="background:var(--active)"></i>进行中</span>
+      <span><i class="dot" style="background:var(--done)"></i>已完成</span>
+      <span><i class="dot" style="background:var(--error)"></i>错误</span>
+      <span><i class="dot" style="background:var(--idle)"></i>未到达</span>
+    </div>
+
+    <!-- 每轮链路分组卡片由 monitor.js 动态生成 -->
+    <div id="turns"><!-- 轮次卡片由 monitor.js 渲染 --></div>
+  </div>
+
+  <script src="/static/js/monitor.js"></script>
+</body>
+</html>

@@ -1,26 +1,130 @@
 const LS_KEY = "ark_chat_conversations";
 const LS_SETTINGS_KEY = "ark_chat_settings";
+const LS_THINKING_CAPS_KEY = "ark_thinking_caps";
 let conversations = [];
 let currentId = null;
 let pendingImages = []; // Store base64 images
-let settings = { systemPrompt: "", apiKey: "", modelId: "" };
+let settings = { systemPrompt: "" };
 let webSearchEnabled = false;
+let reasoningEffort = ""; // 思考深度：""=默认 / minimal / low / medium / high
+// 模型思考能力缓存：{模型名: "effort"|"toggle"|"none"}，按真实模型名持久化
+let modelThinkingCaps = {};
+// 当前菜单已应用的思考能力（默认 effort 全开，待后端探测后更新）
+let currentThinkingMode = "effort";
+// 各档位对应的按钮显示文案
+const REASONING_LABELS = {
+  "": "深度思考",
+  "minimal": "关闭思考",
+  "low": "轻量思考",
+  "medium": "均衡思考",
+  "high": "深度思考(high)",
+};
+
+function loadThinkingCaps() {
+  try {
+    modelThinkingCaps = JSON.parse(localStorage.getItem(LS_THINKING_CAPS_KEY) || "{}");
+  } catch {
+    modelThinkingCaps = {};
+  }
+}
+function saveThinkingCaps() {
+  localStorage.setItem(LS_THINKING_CAPS_KEY, JSON.stringify(modelThinkingCaps));
+}
+
+// 刷新思考按钮文案与高亮态
+function refreshThinkingBtn() {
+  const thinkingBtn = document.getElementById("thinking-btn");
+  const thinkingLabel = document.getElementById("thinking-label");
+  if (!thinkingBtn || !thinkingLabel) return;
+  thinkingLabel.textContent = REASONING_LABELS[reasoningEffort] || "深度思考";
+  // 选了非默认档位时高亮按钮
+  if (reasoningEffort) {
+    thinkingBtn.classList.remove("text-gray-500", "hover:bg-gray-100");
+    thinkingBtn.classList.add("text-blue-600", "bg-blue-50", "hover:bg-blue-100");
+  } else {
+    thinkingBtn.classList.add("text-gray-500", "hover:bg-gray-100");
+    thinkingBtn.classList.remove("text-blue-600", "bg-blue-50", "hover:bg-blue-100");
+  }
+  updateThinkingBadge();
+}
+
+// 计算并显示「真实生效的思考深度」徽章。
+// 真实档位由模型能力(currentThinkingMode)与用户所选(reasoningEffort)共同决定：
+//  - none：模型不支持思考 → 不支持
+//  - toggle：仅开/关，minimal=已关闭，其余=已开启（无强度分级）
+//  - effort：按所选强度精确显示
+//  - 默认档位(未选)：交给模型默认行为
+function updateThinkingBadge() {
+  const badge = document.getElementById("thinking-badge");
+  const text = document.getElementById("thinking-badge-text");
+  if (!badge || !text) return;
+  // 无会话时隐藏
+  if (!currentId) {
+    badge.classList.add("hidden");
+    badge.classList.remove("inline-flex");
+    return;
+  }
+  let label;
+  if (currentThinkingMode === "none") {
+    label = "不支持思考";
+  } else if (!reasoningEffort) {
+    label = "思考：模型默认";
+  } else if (currentThinkingMode === "toggle") {
+    label = reasoningEffort === "minimal" ? "思考：已关闭" : "思考：已开启";
+  } else {
+    // effort 模式：精确强度
+    const map = { minimal: "思考：已关闭", low: "思考：轻量", medium: "思考：均衡", high: "思考：深度" };
+    label = map[reasoningEffort] || "思考：模型默认";
+  }
+  text.textContent = label;
+  badge.classList.remove("hidden");
+  badge.classList.add("inline-flex");
+}
+
+// 根据探测到的思考能力，动态启用/禁用思考菜单档位
+function applyThinkingCapability(mode) {
+  currentThinkingMode = mode || "effort";
+  const btn = document.getElementById("thinking-btn");
+  const opts = document.querySelectorAll(".thinking-opt");
+  // 先清除所有禁用态
+  opts.forEach(o => o.classList.remove("opacity-40", "pointer-events-none"));
+  if (btn) btn.classList.remove("opacity-40", "pointer-events-none");
+
+  if (currentThinkingMode === "none") {
+    // 模型不支持思考：禁用整个按钮，复位档位
+    if (btn) btn.classList.add("opacity-40", "pointer-events-none");
+    reasoningEffort = "";
+  } else if (currentThinkingMode === "toggle") {
+    // 仅支持开/关：禁用 low/medium 两档
+    opts.forEach(o => {
+      const eff = o.getAttribute("data-effort");
+      if (eff === "low" || eff === "medium") {
+        o.classList.add("opacity-40", "pointer-events-none");
+      }
+    });
+    // 若当前档位落在被禁用项，回退到 high（深度思考=开启）
+    if (reasoningEffort === "low" || reasoningEffort === "medium") {
+      reasoningEffort = "high";
+    }
+  }
+  // effort 模式：全部可用，无需额外处理
+  if (typeof refreshThinkingBtn === "function") refreshThinkingBtn();
+}
+
 
 function loadSettings() {
   try {
-    const defaultSettings = { systemPrompt: "", apiKey: "", modelId: "" };
+    const defaultSettings = { systemPrompt: "" };
     const saved = JSON.parse(localStorage.getItem(LS_SETTINGS_KEY) || '{}');
     settings = { ...defaultSettings, ...saved };
   } catch {
-    settings = { systemPrompt: "", apiKey: "", modelId: "" };
+    settings = { systemPrompt: "" };
   }
 }
 
 function toggleSettings(show) {
   const modal = document.getElementById("settings-modal");
   if (show) {
-    document.getElementById("setting-api-key").value = settings.apiKey || "";
-    document.getElementById("setting-model-id").value = settings.modelId || "";
     document.getElementById("setting-system-prompt").value = settings.systemPrompt || "";
     modal.classList.remove("hidden");
     modal.classList.add("flex");
@@ -31,8 +135,6 @@ function toggleSettings(show) {
 }
 
 function saveSettings() {
-  settings.apiKey = document.getElementById("setting-api-key").value.trim();
-  settings.modelId = document.getElementById("setting-model-id").value.trim();
   settings.systemPrompt = document.getElementById("setting-system-prompt").value.trim();
   localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(settings));
   toggleSettings(false);
@@ -69,9 +171,25 @@ function selectConversation(id) {
   document.getElementById("conv-title").textContent = c ? c.title : "未选择会话";
   renderConversationList();
   renderMessages();
+  refreshModelBadge();
+  refreshThinkingCapability();
   
   // Mobile: Close sidebar after selection
   document.body.classList.remove('sidebar-open');
+}
+
+// 根据当前会话的历史记录恢复思考能力（按消息 thinkingMode 或按模型名缓存）
+function refreshThinkingCapability() {
+  const c = conversations.find(x => x.id === currentId);
+  let mode = "effort"; // 无记录时默认全开
+  if (c) {
+    for (let i = c.messages.length - 1; i >= 0; i--) {
+      const m = c.messages[i];
+      if (m.thinkingMode) { mode = m.thinkingMode; break; }
+      if (m.model && modelThinkingCaps[m.model]) { mode = modelThinkingCaps[m.model]; break; }
+    }
+  }
+  applyThinkingCapability(mode);
 }
 function renderMessages(checkUserScroll = false) {
   const box = document.getElementById("messages");
@@ -95,6 +213,20 @@ function renderMessages(checkUserScroll = false) {
     statusDiv.className = "hidden text-xs text-gray-500 mb-2 p-2 bg-gray-50 rounded border border-gray-100 flex items-center gap-2";
     statusDiv.innerHTML = `<span class="animate-pulse">✨</span> <span class="status-text">思考中...</span>`;
     bubble.appendChild(statusDiv);
+
+    // 深度思考过程区（可折叠，仅当该消息有 reasoning 时显示）
+    const reasoningWrap = document.createElement("details");
+    reasoningWrap.className = "reasoning-wrap hidden mb-2 text-xs bg-gray-50 border border-gray-100 rounded-lg overflow-hidden";
+    reasoningWrap.innerHTML = `<summary class="cursor-pointer select-none px-3 py-2 text-gray-500 hover:bg-gray-100">💭 思考过程</summary><div class="reasoning-body px-3 py-2 text-gray-600 whitespace-pre-wrap leading-relaxed border-t border-gray-100"></div>`;
+    // 用户手动展开/收起时打标记，之后不再自动控制，尊重用户选择
+    reasoningWrap.querySelector("summary").addEventListener("click", () => {
+      reasoningWrap.dataset.userToggled = "1";
+    });
+    bubble.appendChild(reasoningWrap);
+    if (m.role !== "user" && m.reasoning) {
+      reasoningWrap.classList.remove("hidden");
+      reasoningWrap.querySelector(".reasoning-body").textContent = m.reasoning;
+    }
     
     // Markdown Container
     const markdownDiv = document.createElement("div");
@@ -185,7 +317,7 @@ function scrollToBottom() {
     box.scrollTop = box.scrollHeight;
 }
 
-function updateLastMessage(content, statusText) {
+function updateLastMessage(content, statusText, reasoning) {
   const box = document.getElementById("messages");
   const lastRow = box.lastElementChild;
   if (!lastRow) return;
@@ -202,10 +334,26 @@ function updateLastMessage(content, statusText) {
      }
   }
 
+  // 更新思考过程（有内容才展开思考区）
+  if (reasoning) {
+     const wrap = bubble.querySelector(".reasoning-wrap");
+     if (wrap) {
+         wrap.classList.remove("hidden");
+         // 思考进行中：自动展开（用户若手动操作过则尊重用户选择）
+         if (!wrap.dataset.userToggled) wrap.open = true;
+         wrap.querySelector(".reasoning-body").textContent = reasoning;
+     }
+  }
+
   // Update Content
   if (content !== undefined) {
      const markdownDiv = bubble.querySelector(".markdown-body");
      if (markdownDiv) {
+         // 正式回答开始：思考已完成，自动收起思考区（用户若手动操作过则尊重用户选择）
+         if (content) {
+            const wrap = bubble.querySelector(".reasoning-wrap");
+            if (wrap && !wrap.dataset.userToggled) wrap.open = false;
+         }
          // Check if content is actually different to avoid unnecessary reflows? 
          // Actually marked.parse might return same HTML.
          // But for streaming, it always grows.
@@ -392,10 +540,12 @@ async function sendMessage() {
     const req = { 
       messages: apiMessages,
       stream: true,
-      web_search: webSearchEnabled,
-      api_key: settings.apiKey || undefined,
-      model: settings.modelId || undefined
+      web_search: webSearchEnabled
     };
+    // 仅当用户选择了具体档位时才下发 reasoning_effort，否则交给模型默认行为
+    if (reasoningEffort) {
+      req.reasoning_effort = reasoningEffort;
+    }
     const resp = await fetch("http://localhost:8000/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -406,16 +556,25 @@ async function sendMessage() {
       throw new Error(d.detail || ("HTTP " + resp.status));
     }
 
-    // 创建空的 assistant 消息
+    // 创建空的 assistant 消息（暂不渲染）
     const assistantMsg = { role: "assistant", content: "", created: Date.now() };
-    c.messages.push(assistantMsg);
-    saveConversations();
-    
+
     // Reset scroll state before starting stream
     userScrolledUp = false;
-    
-    // IMPORTANT: Render the empty bubble FIRST so updateLastMessage has a target
-    renderMessages();
+
+    // 关键：不要在 fetch 返回后就清空"思考中"。
+    // SSE 让 fetch 提前 resolve（响应头先到、内容未到），此时渲染空气泡会导致
+    // "思考中"消失到首字出现之间出现几秒空白。
+    // 改为：等首个有效数据（内容/搜索状态/错误）真正到达时，才移除"思考中"并渲染气泡。
+    let bubbleReady = false;
+    function showAssistantBubble() {
+      if (bubbleReady) return;
+      bubbleReady = true;
+      c.messages.push(assistantMsg);
+      saveConversations();
+      removeLoading();
+      renderMessages();
+    }
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
@@ -461,6 +620,8 @@ async function sendMessage() {
                 
                 // Handle search status
                 if (data.type === 'searching') {
+                   // 首个有效事件到达，移除"思考中"并渲染气泡
+                   showAssistantBubble();
                    // Status updates happen immediately, bypassing typewriter
                    if (data.status === 'start') {
                       assistantMsg.statusText = "正在分析请求，准备调用搜索工具...";
@@ -477,14 +638,40 @@ async function sendMessage() {
                    }
                 }
 
+                // 思考能力：后端探测出当前模型支持的思考模式，动态调整菜单
+                if (data.type === 'thinking_capability') {
+                  assistantMsg.thinkingMode = data.mode;
+                  applyThinkingCapability(data.mode);
+                }
+
                 if (data.content) {
+                  // 首字到达，移除"思考中"并渲染气泡
+                  showAssistantBubble();
                   // Push to buffer, let the loop handle rendering
                   streamBuffer += data.content;
+                }
+                if (data.reasoning) {
+                  // 思考过程：直接累加并实时渲染（不经打字机缓冲）
+                  showAssistantBubble();
+                  assistantMsg.reasoning += data.reasoning;
+                  updateLastMessage(undefined, undefined, assistantMsg.reasoning);
                 }
                 if (data.usage) {
                   setStatus("tokens：" + data.usage.total_tokens);
                 }
+                if (data.model) {
+                  // 后端透传的火山真实模型名，存入消息并显示到顶部徽章
+                  assistantMsg.model = data.model;
+                  // 按真实模型名持久化其思考能力，下次同模型立即应用
+                  if (assistantMsg.thinkingMode) {
+                    modelThinkingCaps[data.model] = assistantMsg.thinkingMode;
+                    saveThinkingCaps();
+                  }
+                  saveConversations();
+                  setModelBadge(data.model);
+                }
                 if (data.error) {
+                  showAssistantBubble();
                   streamBuffer += `\n\n❌ Error: ${data.error}`;
                   setStatus("Error");
                 }
@@ -495,6 +682,8 @@ async function sendMessage() {
           }
         }
         isStreamActive = false; // Signal loop to finish up
+        // 兜底：若整个流结束都没收到任何有效数据（空回复），也要移除"思考中"，避免卡住
+        showAssistantBubble();
     } catch (e) {
         if (typeWriterLoop) clearInterval(typeWriterLoop);
         isStreamActive = false;
@@ -520,6 +709,33 @@ async function sendMessage() {
 }
 function setStatus(s) {
   document.getElementById("status").textContent = s || "";
+}
+
+// 顶部模型徽章：显示当前会话实际使用的火山模型；传入空值则隐藏
+function setModelBadge(model) {
+  const badge = document.getElementById("model-badge");
+  const text = document.getElementById("model-badge-text");
+  if (!badge || !text) return;
+  if (model) {
+    text.textContent = model;
+    badge.classList.remove("hidden");
+    badge.classList.add("inline-flex");
+  } else {
+    badge.classList.add("hidden");
+    badge.classList.remove("inline-flex");
+  }
+}
+
+// 根据指定会话的最后一条带 model 的消息恢复徽章
+function refreshModelBadge() {
+  const c = conversations.find(x => x.id === currentId);
+  let model = "";
+  if (c) {
+    for (let i = c.messages.length - 1; i >= 0; i--) {
+      if (c.messages[i].model) { model = c.messages[i].model; break; }
+    }
+  }
+  setModelBadge(model);
 }
 
 // Sidebar Toggle Logic
@@ -597,12 +813,43 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.classList.remove("text-blue-600", "bg-blue-50", "hover:bg-blue-100");
       }
     };
+
+    // 深度思考：点击按钮展开/收起档位菜单
+    const thinkingBtn = document.getElementById("thinking-btn");
+    const thinkingMenu = document.getElementById("thinking-menu");
+
+    thinkingBtn.onclick = function(e) {
+      e.stopPropagation();
+      const willShow = thinkingMenu.classList.contains("hidden");
+      if (willShow) {
+        // fixed 定位：脱离输入框卡片的 overflow-hidden 裁切，按按钮位置弹在其正上方
+        thinkingMenu.classList.remove("hidden");
+        const r = thinkingBtn.getBoundingClientRect();
+        thinkingMenu.style.left = r.left + "px";
+        thinkingMenu.style.top = (r.top - thinkingMenu.offsetHeight - 8) + "px";
+      } else {
+        thinkingMenu.classList.add("hidden");
+      }
+    };
+
+    document.querySelectorAll(".thinking-opt").forEach(opt => {
+      opt.onclick = function(e) {
+        e.stopPropagation();
+        reasoningEffort = this.getAttribute("data-effort") || "";
+        refreshThinkingBtn();
+        thinkingMenu.classList.add("hidden");
+      };
+    });
+
+    // 点击页面其它地方关闭菜单
+    document.addEventListener("click", () => thinkingMenu.classList.add("hidden"));
     
     // Global function expose for settings modal (onclick attributes in HTML)
     window.toggleSettings = toggleSettings;
     window.saveSettings = saveSettings;
 
     loadSettings();
+    loadThinkingCaps();
     loadConversations();
     renderConversationList();
     selectConversation(conversations.length ? conversations[0].id : null);

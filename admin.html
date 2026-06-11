@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理员后台 · 大模型配置</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f0f4f9;
+      color: #1f2937;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      width: 100%;
+      max-width: 460px;
+      padding: 32px;
+    }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: #6b7280; margin-bottom: 24px; }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: #3b82f6; }
+    .hint { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+    button {
+      width: 100%;
+      padding: 11px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { background: #93c5fd; cursor: not-allowed; }
+    .msg {
+      margin-top: 16px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+    }
+    .msg.success { background: #dcfce7; color: #166534; display: block; }
+    .msg.error { background: #fee2e2; color: #991b1b; display: block; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .logout {
+      width: auto;
+      padding: 6px 14px;
+      font-size: 13px;
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .logout:hover { background: #e5e7eb; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <!-- 登录视图 -->
+  <div class="card" id="login-view">
+    <h1>管理员登录</h1>
+    <p class="subtitle">登录后可配置大模型相关信息</p>
+    <div class="form-group">
+      <label for="username">账号</label>
+      <input type="text" id="username" placeholder="请输入账号" autocomplete="username" />
+    </div>
+    <div class="form-group">
+      <label for="password">密码</label>
+      <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password" />
+    </div>
+    <button id="login-btn">登录</button>
+    <div class="msg" id="login-msg"></div>
+  </div>
+
+  <!-- 配置视图 -->
+  <div class="card hidden" id="config-view">
+    <div class="topbar">
+      <div>
+        <h1>大模型配置</h1>
+        <p class="subtitle" style="margin-bottom:0;">配置将保存到服务器本地 config.ini</p>
+      </div>
+      <button class="logout" id="logout-btn">退出登录</button>
+    </div>
+    <div class="form-group">
+      <label for="api-key">API Key</label>
+      <input type="text" id="api-key" placeholder="留空则保持原值不变" autocomplete="off" />
+      <p class="hint" id="api-key-hint"></p>
+    </div>
+    <div class="form-group">
+      <label for="model-id">Model ID</label>
+      <input type="text" id="model-id" placeholder="例如 doubao-seed-1-8-251228" />
+    </div>
+    <div class="form-group">
+      <label for="base-url">Base URL</label>
+      <input type="text" id="base-url" placeholder="https://ark.cn-beijing.volces.com/api/v3" />
+    </div>
+    <button id="save-btn">保存配置</button>
+    <div class="msg" id="config-msg"></div>
+  </div>
+
+  <script>
+    const TOKEN_KEY = "admin_token";
+
+    const loginView = document.getElementById("login-view");
+    const configView = document.getElementById("config-view");
+    const loginMsg = document.getElementById("login-msg");
+    const configMsg = document.getElementById("config-msg");
+
+    function getToken() { return sessionStorage.getItem(TOKEN_KEY); }
+    function setToken(t) { sessionStorage.setItem(TOKEN_KEY, t); }
+    function clearToken() { sessionStorage.removeItem(TOKEN_KEY); }
+
+    function showMsg(el, text, type) {
+      el.textContent = text;
+      el.className = "msg " + type;
+    }
+    function hideMsg(el) { el.className = "msg"; }
+
+    function showConfigView() {
+      loginView.classList.add("hidden");
+      configView.classList.remove("hidden");
+    }
+    function showLoginView() {
+      configView.classList.add("hidden");
+      loginView.classList.remove("hidden");
+    }
+
+    // 登录
+    document.getElementById("login-btn").onclick = async () => {
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+      hideMsg(loginMsg);
+      try {
+        const res = await fetch("/api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        if (!res.ok) {
+          showMsg(loginMsg, "账号或密码错误", "error");
+          return;
+        }
+        const data = await res.json();
+        setToken(data.token);
+        showConfigView();
+        loadConfig();
+      } catch (e) {
+        showMsg(loginMsg, "登录请求失败：" + e.message, "error");
+      }
+    };
+
+    // 退出登录
+    document.getElementById("logout-btn").onclick = () => {
+      clearToken();
+      showLoginView();
+    };
+
+    // 读取配置回显
+    async function loadConfig() {
+      try {
+        const res = await fetch("/api/admin/config", {
+          headers: { "Authorization": "Bearer " + getToken() },
+        });
+        if (res.status === 401) {
+          clearToken();
+          showLoginView();
+          return;
+        }
+        const data = await res.json();
+        document.getElementById("model-id").value = data.model_id || "";
+        document.getElementById("base-url").value = data.base_url || "";
+        const hint = document.getElementById("api-key-hint");
+        if (data.has_api_key) {
+          hint.textContent = "当前已配置：" + data.api_key_masked + "（留空则不修改）";
+        } else {
+          hint.textContent = "当前未配置 API Key";
+        }
+      } catch (e) {
+        showMsg(configMsg, "读取配置失败：" + e.message, "error");
+      }
+    }
+
+    // 保存配置
+    document.getElementById("save-btn").onclick = async () => {
+      hideMsg(configMsg);
+      const body = {
+        api_key: document.getElementById("api-key").value.trim(),
+        model_id: document.getElementById("model-id").value.trim(),
+        base_url: document.getElementById("base-url").value.trim(),
+      };
+      try {
+        const res = await fetch("/api/admin/config", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + getToken(),
+          },
+          body: JSON.stringify(body),
+        });
+        if (res.status === 401) {
+          clearToken();
+          showLoginView();
+          return;
+        }
+        if (!res.ok) {
+          showMsg(configMsg, "保存失败", "error");
+          return;
+        }
+        showMsg(configMsg, "保存成功，已写入服务器本地配置", "success");
+        document.getElementById("api-key").value = "";
+        loadConfig();
+      } catch (e) {
+        showMsg(configMsg, "保存请求失败：" + e.message, "error");
+      }
+    };
+
+    // 初始化：若已有 token 直接进入配置页
+    if (getToken()) {
+      showConfigView();
+      loadConfig();
+    }
+
+    // 确保输入框支持 Ctrl/Cmd+A 全选
+    document.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
+        const el = document.activeElement;
+        if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) {
+          e.preventDefault();
+          el.select();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

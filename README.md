@@ -20,6 +20,13 @@
 
 - **多轮对话**：支持与 Ark 大模型（如 Doubao-pro/lite）进行上下文连贯的对话。
 - **联网搜索**：集成火山引擎 Web Search 插件，支持实时联网获取信息，并展示搜索过程与思考状态。
+- **思考深度调节**：支持 `reasoning_effort`（minimal/low/medium/high）动态调节模型思考强度，并自动适配不同模型的思考能力（强度分级 / 开关 / 不支持的降级策略）。
+- **管理员后台**（`/admin`）：
+  - 提供管理员登录入口，登录后可在网页上集中配置 API Key、Model ID、Base URL。
+  - 配置持久化写入服务器本地 `config.ini`，即时生效且重启后依然保留。
+- **全流程监控页**（`/monitor`）：
+  - 以流程图 + 实时高亮的形式，可视化“前端发送 → 后端处理 → Ark SDK → SSE 流式返回 → 前端渲染”的完整链路。
+  - 展示各节点触发时刻与耗时（含 TTFT 首字耗时），便于学习与排查。
 - **会话管理**：
   - 左侧侧栏管理历史会话。
   - 支持新建、切换、重命名和删除会话。
@@ -83,18 +90,30 @@ python -m uvicorn ark_server:app --host 0.0.0.0 --port 8000
 
 ### 5. 访问应用
 
-打开浏览器访问：[http://localhost:8000](http://localhost:8000)
+打开浏览器访问：
+
+- 对话主界面：[http://localhost:8000](http://localhost:8000)
+- 管理员后台：[http://localhost:8000/admin](http://localhost:8000/admin)（默认账号/密码均为 `admin`）
+- 全流程监控页：[http://localhost:8000/monitor](http://localhost:8000/monitor)
 
 ## 📂 项目结构
 
 ```
 .
-├── ark_server.py      # 主后端服务 (FastAPI)
-├── chat.html          # 主前端页面
-├── config.ini         # 配置文件 (需自行创建)
-├── config.example.ini # 配置文件模板
-├── requirements.txt   # 项目依赖
-└── assets/            # 静态资源 (图片等)
+├── ark_server.py          # 主后端服务 (FastAPI)，含对话/配置/监控路由
+├── chat.html              # 主对话前端页面
+├── admin.html             # 管理员后台（登录 + 大模型配置）
+├── monitor.html           # 全流程监控可视化页面
+├── index.html             # 入口/导航页
+├── static/
+│   ├── css/chat.css       # 对话页样式
+│   └── js/
+│       ├── chat.js        # 对话页逻辑（流式渲染、会话管理）
+│       └── monitor.js     # 监控页逻辑（链路埋点与流程图驱动）
+├── config.ini             # 配置文件 (需自行创建，已被 .gitignore 忽略)
+├── config.example.ini     # 配置文件模板
+├── requirements.txt       # 项目依赖
+└── assets/                # 静态资源 (图片等)
 ```
 
 ## 📝 备注
@@ -119,6 +138,12 @@ python -m uvicorn ark_server:app --host 0.0.0.0 --port 8000
 <!--END_SECTION:recent_commits-->
 
 ## 📅 更新日志
+
+- **v6.0.0** (2026-06-12)
+  - 🛡️ **管理员后台**：新增 `/admin` 登录与配置面板，可在线配置 API Key、Model ID、Base URL，并持久化写入 `config.ini`，即时生效。
+  - 🔭 **全流程监控页**：新增 `/monitor` 可视化页面，以流程图 + 实时高亮展示从前端发送到 SSE 流式返回的完整链路与各节点耗时（含 TTFT）。
+  - 🧠 **思考深度调节**：支持 `reasoning_effort`（minimal/low/medium/high），并按模型能力自动适配（强度分级 / 开关 / 不支持降级）。
+  - 🧹 **工程整理**：清理坚果云同步产生的冗余副本文件，统一项目结构。
 
 - **v5.4.0** (2026-02-19)
   - ⚡️ **架构重构**：将前端代码拆分为独立的 CSS/JS 文件，提升项目可维护性与加载性能。

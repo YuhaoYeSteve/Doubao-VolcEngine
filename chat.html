@@ -68,6 +68,14 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
             <div id="conv-title" class="font-medium text-gray-900 truncate max-w-md"></div>
+            <span id="model-badge" class="hidden shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/80 text-xs font-medium text-indigo-600 shadow-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+              <span id="model-badge-text"></span>
+            </span>
+            <span id="thinking-badge" class="hidden shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-xs font-medium text-amber-600 shadow-sm" title="当前模型实际生效的思考深度">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              <span id="thinking-badge-text"></span>
+            </span>
         </div>
         
         <div class="flex items-center gap-3 text-gray-400">
@@ -98,7 +106,16 @@
                     
                     <!-- Feature Mock Icons -->
                     <div class="hidden md:flex items-center gap-3 text-xs font-medium text-gray-500">
-                        <button class="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded-md transition"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="text-blue-500"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> 深度思考</button>
+                        <div class="relative">
+                          <button id="thinking-btn" class="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded-md transition text-gray-500"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="text-blue-500"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> <span id="thinking-label">深度思考</span></button>
+                          <div id="thinking-menu" class="hidden fixed w-44 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50 text-gray-700">
+                            <button data-effort="" class="thinking-opt w-full text-left px-3 py-2 hover:bg-gray-100 flex flex-col"><span class="font-medium">默认</span><span class="text-[11px] text-gray-400">交给模型自行决定</span></button>
+                            <button data-effort="minimal" class="thinking-opt w-full text-left px-3 py-2 hover:bg-gray-100 flex flex-col"><span class="font-medium">关闭思考</span><span class="text-[11px] text-gray-400">minimal · 直接回答，最快</span></button>
+                            <button data-effort="low" class="thinking-opt w-full text-left px-3 py-2 hover:bg-gray-100 flex flex-col"><span class="font-medium">轻量思考</span><span class="text-[11px] text-gray-400">low · 侧重快速响应</span></button>
+                            <button data-effort="medium" class="thinking-opt w-full text-left px-3 py-2 hover:bg-gray-100 flex flex-col"><span class="font-medium">均衡思考</span><span class="text-[11px] text-gray-400">medium · 兼顾速度与深度</span></button>
+                            <button data-effort="high" class="thinking-opt w-full text-left px-3 py-2 hover:bg-gray-100 flex flex-col"><span class="font-medium">深度思考</span><span class="text-[11px] text-gray-400">high · 处理复杂问题，最慢</span></button>
+                          </div>
+                        </div>
                         <button id="web-search-btn" class="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded-md transition text-gray-500"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> 联网搜索</button>
                         <button class="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded-md transition"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> 图像生成</button>
                     </div>
@@ -122,14 +139,6 @@
         <button onclick="toggleSettings(false)" class="text-gray-500 hover:text-black">×</button>
       </div>
       <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-          <input type="password" id="setting-api-key" class="w-full border rounded p-2" placeholder="ARK_API_KEY">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Model ID</label>
-          <input type="text" id="setting-model-id" class="w-full border rounded p-2" placeholder="doubao-seed-1-8-251228">
-        </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">System Prompt (人设)</label>
           <textarea id="setting-system-prompt" class="w-full border rounded p-2 h-24 resize-none" placeholder="例如：你是一个资深的 Python 工程师..."></textarea>
