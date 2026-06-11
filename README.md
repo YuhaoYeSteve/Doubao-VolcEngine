@@ -128,12 +128,12 @@ python -m uvicorn ark_server:app --host 0.0.0.0 --port 8000
 
 ### 最新 5 次提交记录
 
+- [`abda0ab`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/abda0ab1773872a65a6b779d12c6fb892f017cd1) feat: 新增管理员后台与全流程监控页，支持思考深度调节 (v6.0.0) (2026-06-12)
+- [`829a28d`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/829a28d3ccb88c18fd4c26522cdbd15151e0c05a) docs: auto-update recent commits in README [skip ci] (2026-02-24)
 - [`2129afa`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/2129afa30a4b611f4f3c94e4c1971117010d947e) docs: add 'Built with Trae' badge (2026-02-22)
 - [`9544576`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/9544576e3043d018ad9e867fc5b32e430a0694e6) docs: release v5.4.0 - frontend refactor and design system (2026-02-22)
 - [`2c66eef`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/2c66eef72265b3c8ef8a52692b297d3574ecb02d) feat: release v5.4.0 with frontend refactoring and mobile support (2026-02-19)
-- [`40138ad`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/40138ad77e4281f084a6bed42ec3bebda1c5c9c1) docs: add badges and auto-update workflow for readme (2026-02-12)
-- [`dfe059d`](https://github.com/YuhaoYeSteve/Doubao-VolcEngine/commit/dfe059da59af4ff943db8f51496e1f9564460251) feat: optimize chat streaming and scroll ux (v5.3.0) (2026-02-11)
-> 自动更新于 2026-02-24 02:16:31
+> 自动更新于 2026-06-11 17:25:57
 
 <!--END_SECTION:recent_commits-->
 
